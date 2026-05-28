@@ -5,7 +5,9 @@ import { GIT_LEVELS } from "../data/levels";
 import { Sidebar } from "./Sidebar";
 import { GitGraph } from "./GitGraph";
 import { MockTerminal } from "./MockTerminal";
-import { RefreshCw, SkipForward, Award, RotateCcw, RotateCw, Globe } from "lucide-react";
+import { RebaseModal } from "./RebaseModal";
+import { DiffPanel } from "./DiffPanel";
+import { RefreshCw, SkipForward, Award, RotateCcw, RotateCw, Globe, Share2 } from "lucide-react";
 import type { Language } from "../data/translations";
 import { UI_TRANSLATIONS } from "../data/translations";
 import confetti from "canvas-confetti";
@@ -27,6 +29,21 @@ export const Workspace: React.FC = () => {
 
   const [currentLevelId, setCurrentLevelId] = useState<number | null>(1); // Default to level 1
   const [gitState, setGitState] = useState<GitState>(() => {
+    // 1. Check URL for custom_level
+    const params = new URLSearchParams(window.location.search);
+    const custom = params.get("custom_level");
+    if (custom) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(atob(custom)));
+        if (decoded && decoded.commits) {
+          return decoded;
+        }
+      } catch(e) {
+        console.error("Failed to parse custom_level", e);
+      }
+    }
+    
+    // 2. Default to first level
     const firstLevel = GIT_LEVELS[0];
     return JSON.parse(JSON.stringify(firstLevel.initialState));
   });
@@ -34,6 +51,8 @@ export const Workspace: React.FC = () => {
   const [isLevelSolved, setIsLevelSolved] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [terminalInsertVal, setTerminalInsertVal] = useState<string | null>(null);
+  const [conflictText, setConflictText] = useState<string>("");
+  const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
 
   // Initialize engine ref to persist engine instance
   const engineRef = useRef<GitEngine>(new GitEngine(gitState));
@@ -80,7 +99,7 @@ export const Workspace: React.FC = () => {
   // Handle commands typed in mock terminal
   const handleTerminalCommand = (commandStr: string) => {
     const result = engineRef.current.execute(commandStr);
-    if (result.success && result.stateChanged) {
+    if (result.stateChanged) {
       syncStateWithEngine();
     }
     return result;
@@ -165,6 +184,19 @@ export const Workspace: React.FC = () => {
     }
   };
 
+  const handleShare = () => {
+    try {
+      const stateToShare = engineRef.current.getState();
+      const b64 = btoa(encodeURIComponent(JSON.stringify(stateToShare)));
+      const url = new URL(window.location.href);
+      url.searchParams.set("custom_level", b64);
+      navigator.clipboard.writeText(url.toString());
+      alert(lang === "zh" ? "沙盒状态已复制到剪贴板！" : "Sandbox state copied to clipboard!");
+    } catch(e) {
+      alert("Failed to copy state.");
+    }
+  };
+
   // Handle clicking on a command in the Cheat Sheet
   const handleCheatClick = (cmdText: string) => {
     setTerminalInsertVal(cmdText);
@@ -184,6 +216,27 @@ export const Workspace: React.FC = () => {
       setTerminalInsertVal(null);
     }
   }, [terminalInsertVal]);
+
+  // Synchronize conflict text when conflict starts
+  useEffect(() => {
+    if (gitState.conflictState?.isConflicting) {
+      setConflictText(gitState.conflictState.fileContent);
+    }
+  }, [gitState.conflictState?.isConflicting, gitState.conflictState?.fileContent]);
+
+  const handleResolveConflict = () => {
+    const res = engineRef.current.resolveConflict(conflictText);
+    if (res.stateChanged) {
+      syncStateWithEngine();
+    }
+  };
+
+  const handleResolveRebase = (actions: { commitId: string; action: "pick" | "squash" | "drop" }[]) => {
+    const res = engineRef.current.executeInteractiveRebase(actions);
+    if (res.stateChanged) {
+      syncStateWithEngine();
+    }
+  };
 
   const activeLevelTitle = activeLevel ? (lang === "zh" ? activeLevel.titleZh : activeLevel.titleEn) : "";
   const activeLevelDesc = activeLevel ? (lang === "zh" ? activeLevel.descriptionZh : activeLevel.descriptionEn) : "";
@@ -277,6 +330,12 @@ export const Workspace: React.FC = () => {
               <RefreshCw size={15} />
               <span>{t.resetBtn}</span>
             </button>
+            
+            {/* Share button */}
+            <button className="control-btn" title={lang === "zh" ? "分享状态" : "Share State"} onClick={handleShare}>
+              <Share2 size={15} />
+              <span>{lang === "zh" ? "分享" : "Share"}</span>
+            </button>
 
             {/* Skip button */}
             {activeLevel && (
@@ -318,10 +377,22 @@ export const Workspace: React.FC = () => {
           </div>
         )}
 
-        {/* Layout Split: Graph on top, Terminal on bottom */}
         <div className="workspace-split">
-          <div className="visualizer-section">
-            <GitGraph state={gitState} />
+          <div className="visualizer-section" style={{ display: gitState.remoteState ? 'flex' : 'block' }}>
+            {gitState.remoteState ? (
+              <>
+                <div style={{ flex: 1, minWidth: '350px', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, padding: '6px 12px', background: 'rgba(0,0,0,0.5)', color: 'var(--text-secondary)', fontSize: '12px', borderBottomRightRadius: '8px', zIndex: 10 }}>Local Repository</div>
+                  <GitGraph state={gitState} onNodeClick={setSelectedCommitId} />
+                </div>
+                <div style={{ flex: 1, minWidth: '350px', borderLeft: '1px solid var(--border-color)', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, padding: '6px 12px', background: 'rgba(0,0,0,0.5)', color: 'var(--text-secondary)', fontSize: '12px', borderBottomRightRadius: '8px', zIndex: 10 }}>Remote: {gitState.remoteState.url}</div>
+                  <GitGraph state={gitState.remoteState as any} onNodeClick={setSelectedCommitId} />
+                </div>
+              </>
+            ) : (
+              <GitGraph state={gitState} onNodeClick={setSelectedCommitId} />
+            )}
           </div>
 
           <div className="terminal-section">
@@ -356,6 +427,76 @@ export const Workspace: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 4. Conflict Resolver Modal */}
+      {gitState.conflictState?.isConflicting && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ width: '600px', maxWidth: '90vw' }}>
+            <div className="modal-glow-border" style={{ borderColor: '#ff0844' }}></div>
+            <h2 style={{ color: '#ff0844', marginBottom: '8px' }}>
+              {lang === 'zh' ? '代码冲突解决' : 'Merge Conflict Resolver'}
+            </h2>
+            <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+              {lang === 'zh' 
+                ? `合并 ${gitState.conflictState.targetBranch} 时在 index.html 中发现了冲突。请手动编辑以下内容解决冲突：`
+                : `Conflict in index.html while merging ${gitState.conflictState.targetBranch}. Please edit the content below to resolve:`}
+            </p>
+            
+            <textarea
+              value={conflictText}
+              onChange={(e) => setConflictText(e.target.value)}
+              style={{
+                width: '100%',
+                height: '240px',
+                background: 'rgba(0,0,0,0.4)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                color: '#fff',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '13px',
+                padding: '12px',
+                marginBottom: '20px',
+                resize: 'vertical'
+              }}
+            />
+
+            <div className="modal-actions">
+              <button 
+                className="modal-btn primary-btn" 
+                style={{ background: 'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)', boxShadow: '0 4px 15px rgba(255, 8, 68, 0.25)' }}
+                onClick={handleResolveConflict}
+              >
+                {lang === 'zh' ? '标记为已解决并提交' : 'Mark as Resolved & Commit'}
+              </button>
+              <button 
+                className="modal-btn secondary-btn" 
+                onClick={handleUndo} // Aborting merge by undoing
+              >
+                {lang === 'zh' ? '中止合并 (撤销)' : 'Abort Merge (Undo)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Interactive Rebase Modal */}
+      {gitState.rebaseState?.isActive && (
+        <RebaseModal
+          gitState={gitState}
+          lang={lang}
+          onResolve={handleResolveRebase}
+          onCancel={handleUndo}
+        />
+      )}
+
+      {/* 6. Diff Panel */}
+      {selectedCommitId && (
+        <DiffPanel 
+          commitId={selectedCommitId} 
+          gitState={gitState} 
+          onClose={() => setSelectedCommitId(null)} 
+        />
       )}
     </div>
   );
