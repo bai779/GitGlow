@@ -81,13 +81,22 @@ export const MockTerminal: React.FC<MockTerminalProps> = ({
       setSuggestion("");
       return;
     }
+    
+    // 1. Prioritize matches from user's recent command history
+    const historyMatch = [...cmdHistory].reverse().find(s => s.startsWith(inputVal));
+    if (historyMatch && historyMatch !== inputVal) {
+      setSuggestion(historyMatch);
+      return;
+    }
+
+    // 2. Fallback to predefined suggestions
     const match = COMMAND_SUGGESTIONS.find(s => s.startsWith(inputVal));
     if (match && match !== inputVal) {
       setSuggestion(match);
     } else {
       setSuggestion("");
     }
-  }, [inputVal]);
+  }, [inputVal, cmdHistory]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
