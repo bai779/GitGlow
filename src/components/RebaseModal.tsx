@@ -3,7 +3,7 @@ import type { GitState, CommandResult } from "../logic/gitEngine";
 
 interface RebaseModalProps {
   gitState: GitState;
-  onResolve: (actions: { commitId: string; action: "pick" | "squash" | "drop" }[]) => CommandResult;
+  onResolve: (actions: { commitId: string; action: "pick" | "squash" | "drop" }[]) => void;
   onCancel: () => void;
   lang: "en" | "zh" | "ja" | "es";
 }

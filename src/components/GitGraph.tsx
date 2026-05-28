@@ -29,23 +29,31 @@ export function getBranchColor(branchName: string): string {
 export const GitGraph: React.FC<GitGraphProps> = ({ state, onNodeClick }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const workerRef = useRef<Worker | null>(null);
   const [layout, setLayout] = useState<LayoutResult | null>(null);
 
-  // 1. Offload layout calculation to Web Worker
+  // 1. Offload layout calculation to Web Worker (Initialize once)
   useEffect(() => {
-    // Dynamically instantiate worker using Vite's URL import
-    const worker = new Worker(new URL("../logic/layoutWorker.ts", import.meta.url), { type: "module" });
+    workerRef.current = new Worker(new URL("../logic/layoutWorker.ts", import.meta.url), { type: "module" });
     
-    worker.onmessage = (e) => {
+    workerRef.current.onmessage = (e) => {
       setLayout(e.data);
     };
     
-    worker.postMessage({
-      commits: state.commits,
-      branches: state.branches
-    });
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
 
-    return () => worker.terminate();
+  // Send state to worker when commits or branches change
+  useEffect(() => {
+    if (workerRef.current) {
+      workerRef.current.postMessage({
+        commits: state.commits,
+        branches: state.branches
+      });
+    }
   }, [state.commits, state.branches]);
 
   // 2. Draw Graph on Canvas

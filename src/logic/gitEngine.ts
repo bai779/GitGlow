@@ -4,7 +4,7 @@ export interface GitCommit {
   parents: string[]; // parent commit IDs
   branch: string; // branch name where it was originally created
   timestamp: number;
-  files: Record<string, string>;
+  files?: Record<string, string>;
 }
 
 export interface GitState {
@@ -1139,9 +1139,10 @@ export class GitEngine {
     }
   }
 
-  private handlePush(args: string[], newState: GitState): CommandResult {
+  private handlePush(_args: string[], newState: GitState): CommandResult {
     if (!newState.remoteState) {
-      return { success: false, message: "No remote repository configured", output: "fatal: No configured push destination.", stateChanged: false };
+      return {
+        success: false, message: "No remote repository configured", output: "fatal: No configured push destination.", stateChanged: false };
     }
     
     const activeBranch = this.getActiveBranchName();
