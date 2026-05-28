@@ -5,11 +5,27 @@ import { GIT_LEVELS } from "../data/levels";
 import { Sidebar } from "./Sidebar";
 import { GitGraph } from "./GitGraph";
 import { MockTerminal } from "./MockTerminal";
-import { RefreshCw, SkipForward, Award } from "lucide-react";
+import { RefreshCw, SkipForward, Award, RotateCcw, RotateCw, Globe } from "lucide-react";
+import type { Language } from "../data/translations";
+import { UI_TRANSLATIONS } from "../data/translations";
 import confetti from "canvas-confetti";
 
 export const Workspace: React.FC = () => {
-  // Load completed levels from localStorage
+  // 1. Language state (defaults to Chinese "zh")
+  const [lang, setLang] = useState<Language>(() => {
+    const saved = localStorage.getItem("gitglow_language");
+    return (saved === "en" || saved === "zh") ? saved : "zh";
+  });
+
+  const toggleLanguage = () => {
+    const nextLang = lang === "zh" ? "en" : "zh";
+    setLang(nextLang);
+    localStorage.setItem("gitglow_language", nextLang);
+  };
+
+  const t = UI_TRANSLATIONS[lang];
+
+  // 2. Load completed levels from localStorage
   const [completedLevelIds, setCompletedLevelIds] = useState<number[]>(() => {
     const saved = localStorage.getItem("gitglow_completed_levels");
     return saved ? JSON.parse(saved) : [];
@@ -116,7 +132,6 @@ export const Workspace: React.FC = () => {
   }, [gitState, activeLevel, isLevelSolved, completedLevelIds]);
 
   const triggerConfetti = () => {
-    // 3 burst triggers
     const duration = 1.5 * 1000;
     const end = Date.now() + duration;
 
@@ -158,10 +173,6 @@ export const Workspace: React.FC = () => {
 
   // Handle clicking on a command in the Cheat Sheet
   const handleCheatClick = (cmdText: string) => {
-    // We pass this through, and inside MockTerminal we will listen for inputVal changes.
-    // However, to make it clean, we can focus and insert.
-    // For now, we can write it to window or pass an event.
-    // A simple custom event or state variable that MockTerminal consumes is easiest.
     setTerminalInsertVal(cmdText);
   };
 
@@ -180,6 +191,11 @@ export const Workspace: React.FC = () => {
     }
   }, [terminalInsertVal]);
 
+  const activeLevelTitle = activeLevel ? (lang === "zh" ? activeLevel.titleZh : activeLevel.titleEn) : "";
+  const activeLevelDesc = activeLevel ? (lang === "zh" ? activeLevel.descriptionZh : activeLevel.descriptionEn) : "";
+  const activeLevelGoal = activeLevel ? (lang === "zh" ? activeLevel.goalZh : activeLevel.goalEn) : "";
+  const activeLevelHint = activeLevel ? (lang === "zh" ? activeLevel.hintZh : activeLevel.hintEn) : "";
+
   return (
     <div className="workspace-container">
       {/* 1. Left Sidebar */}
@@ -189,6 +205,7 @@ export const Workspace: React.FC = () => {
         completedLevelIds={completedLevelIds}
         onSelectLevel={handleSelectLevel}
         onCheatClick={handleCheatClick}
+        lang={lang}
       />
 
       {/* 2. Main Content Canvas */}
@@ -196,21 +213,44 @@ export const Workspace: React.FC = () => {
         {/* Top Control Bar */}
         <div className="control-bar">
           <div className="control-bar-left">
-            <h3>{activeLevel ? `Challenge Mode: Level ${activeLevel.id}` : "Sandbox Playground Mode"}</h3>
+            <h3>
+              {activeLevel 
+                ? `${t.challengeModeLabel} ${activeLevel.id} ${lang === 'zh' ? '关' : ''}` 
+                : t.sandboxModeLabel}
+            </h3>
           </div>
           <div className="control-bar-right">
-            <button className="control-btn" title="Reset current state" onClick={handleReset}>
-              <RefreshCw size={16} />
-              <span>Reset</span>
+            {/* Language Switcher */}
+            <button className="control-btn lang-btn" title="Switch Language / 切换语言" onClick={toggleLanguage}>
+              <Globe size={15} />
+              <span>{lang === "zh" ? "EN" : "中文"}</span>
             </button>
+
+            {/* Undo / Redo buttons */}
+            <button className="control-btn" title={t.undoBtn} onClick={handleUndo}>
+              <RotateCcw size={15} />
+              <span>{t.undoBtn}</span>
+            </button>
+            <button className="control-btn" title={t.redoBtn} onClick={handleRedo}>
+              <RotateCw size={15} />
+              <span>{t.redoBtn}</span>
+            </button>
+
+            {/* Reset button */}
+            <button className="control-btn" title={t.resetBtn} onClick={handleReset}>
+              <RefreshCw size={15} />
+              <span>{t.resetBtn}</span>
+            </button>
+
+            {/* Skip button */}
             {activeLevel && (
               <button
                 className="control-btn skip-btn"
-                title="Skip this level"
-                onClick={() => handleNextLevel()}
+                title={t.skipBtn}
+                onClick={handleNextLevel}
               >
-                <SkipForward size={16} />
-                <span>Skip</span>
+                <SkipForward size={15} />
+                <span>{t.skipBtn}</span>
               </button>
             )}
           </div>
@@ -221,21 +261,21 @@ export const Workspace: React.FC = () => {
           <div className="instructions-card">
             <div className="instructions-header">
               <Award className="instructions-icon" size={20} />
-              <h4>{activeLevel.title}</h4>
+              <h4>{activeLevelTitle}</h4>
               <span className={`level-difficulty-pill diff-${activeLevel.difficulty.toLowerCase()}`}>
                 {activeLevel.difficulty}
               </span>
             </div>
             <div className="instructions-body">
-              <p className="description-text">{activeLevel.description}</p>
+              <p className="description-text">{activeLevelDesc}</p>
               <div className="goal-box">
-                <strong>🎯 Objective:</strong>
-                <p>{activeLevel.goal}</p>
+                <strong>{t.objectiveLabel}</strong>
+                <p>{activeLevelGoal}</p>
               </div>
-              {activeLevel.hint && (
+              {activeLevelHint && (
                 <details className="hint-details">
-                  <summary>💡 Need a hint?</summary>
-                  <p className="hint-text">{activeLevel.hint}</p>
+                  <summary>{t.hintSummary}</summary>
+                  <p className="hint-text">{activeLevelHint}</p>
                 </details>
               )}
             </div>
@@ -253,7 +293,8 @@ export const Workspace: React.FC = () => {
               onCommand={handleTerminalCommand}
               onUndo={handleUndo}
               onRedo={handleRedo}
-              currentLevelTitle={activeLevel ? activeLevel.title : undefined}
+              currentLevelTitle={activeLevel ? activeLevelTitle : undefined}
+              lang={lang}
             />
           </div>
         </div>
@@ -265,16 +306,16 @@ export const Workspace: React.FC = () => {
           <div className="modal-card">
             <div className="modal-glow-border"></div>
             <Award className="modal-icon" size={48} />
-            <h2>Challenge Solved!</h2>
-            <p>Excellent job! You successfully resolved the git state and matched the objectives.</p>
+            <h2>{t.successTitle}</h2>
+            <p>{t.successDesc}</p>
             <div className="modal-actions">
               <button className="modal-btn primary-btn" onClick={handleNextLevel}>
                 {currentLevelId !== null && currentLevelId < GIT_LEVELS.length
-                  ? "Next Challenge"
-                  : "Go to Sandbox"}
+                  ? t.nextChallengeBtn
+                  : t.goToSandboxBtn}
               </button>
               <button className="modal-btn secondary-btn" onClick={() => setShowSuccessModal(false)}>
-                Dismiss
+                {t.dismissBtn}
               </button>
             </div>
           </div>

@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
+import type { Language } from "../data/translations";
+import { UI_TRANSLATIONS } from "../data/translations";
 
 interface TerminalLine {
   text: string;
@@ -10,6 +12,7 @@ interface MockTerminalProps {
   onUndo?: () => void;
   onRedo?: () => void;
   currentLevelTitle?: string;
+  lang: Language;
 }
 
 const COMMAND_SUGGESTIONS = [
@@ -37,12 +40,13 @@ export const MockTerminal: React.FC<MockTerminalProps> = ({
   onCommand,
   onUndo,
   onRedo,
-  currentLevelTitle
+  currentLevelTitle,
+  lang
 }) => {
-  const [history, setHistory] = useState<TerminalLine[]>([
-    { text: "Welcome to GitGlow Terminal v1.0.0", type: "info" },
-    { text: "Type 'help' to see available commands. Use 'git undo' if you make a mistake.", type: "info" }
-  ]);
+  const t = UI_TRANSLATIONS[lang];
+
+  // Set initial messages dynamically depending on active language
+  const [history, setHistory] = useState<TerminalLine[]>([]);
   const [inputVal, setInputVal] = useState("");
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
   const [historyPointer, setHistoryPointer] = useState(-1);
@@ -50,6 +54,14 @@ export const MockTerminal: React.FC<MockTerminalProps> = ({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Re-initialize greetings on language toggle
+  useEffect(() => {
+    setHistory([
+      { text: t.terminalWelcome, type: "info" },
+      { text: t.terminalHelpTip, type: "info" }
+    ]);
+  }, [lang, t.terminalWelcome, t.terminalHelpTip]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -97,21 +109,7 @@ export const MockTerminal: React.FC<MockTerminalProps> = ({
       setHistory([
         ...newHistory,
         {
-          text: `GitGlow Available Commands:
-  git commit -m "msg"   Create a new commit
-  git branch <name>       Create a branch
-  git branch -d <name>    Delete a branch
-  git checkout <ref>      Checkout a branch, tag, or commit
-  git checkout -b <name>  Create and switch to a branch
-  git merge <branch>      Merge branch into current HEAD
-  git rebase <branch>     Rebase current branch onto target
-  git cherry-pick <cid>   Copy commits onto active HEAD
-  git reset --hard <cid>  Move branch pointer to target commit
-  git tag <tag-name>      Create a tag
-  git log                 Show commit log history
-  git status              Show working tree status
-  git undo / git redo     Undo/redo last command
-  clear                   Clear terminal`,
+          text: t.terminalHelpText,
           type: "info"
         }
       ]);
@@ -124,9 +122,9 @@ export const MockTerminal: React.FC<MockTerminalProps> = ({
     if (cmd === "git undo") {
       if (onUndo) {
         onUndo();
-        setHistory([...newHistory, { text: "Undo successful.", type: "success" }]);
+        setHistory([...newHistory, { text: t.terminalUndoSuccess, type: "success" }]);
       } else {
-        setHistory([...newHistory, { text: "Undo not supported in this context.", type: "error" }]);
+        setHistory([...newHistory, { text: t.terminalUndoError, type: "error" }]);
       }
       setCmdHistory([...cmdHistory, cmd]);
       setInputVal("");
@@ -137,9 +135,9 @@ export const MockTerminal: React.FC<MockTerminalProps> = ({
     if (cmd === "git redo") {
       if (onRedo) {
         onRedo();
-        setHistory([...newHistory, { text: "Redo successful.", type: "success" }]);
+        setHistory([...newHistory, { text: t.terminalRedoSuccess, type: "success" }]);
       } else {
-        setHistory([...newHistory, { text: "Redo not supported in this context.", type: "error" }]);
+        setHistory([...newHistory, { text: t.terminalRedoError, type: "error" }]);
       }
       setCmdHistory([...cmdHistory, cmd]);
       setInputVal("");
@@ -154,7 +152,15 @@ export const MockTerminal: React.FC<MockTerminalProps> = ({
     if (result.success) {
       outputLines.push({ text: result.output || "Success.", type: "output" });
     } else {
-      outputLines.push({ text: result.error || "Command error.", type: "error" });
+      // Check for command error localization
+      let errMsg = result.error || "Command error.";
+      if (errMsg.startsWith("Command must start with")) {
+        errMsg = t.terminalCommandError + ": " + cmd;
+      } else if (errMsg.startsWith("git: '") && errMsg.endsWith("' is not a git command. See 'git --help'.")) {
+        const cmdName = cmd.split(" ")[1];
+        errMsg = `git: '${cmdName}' ${t.terminalUnknownCommand}.`;
+      }
+      outputLines.push({ text: errMsg, type: "error" });
     }
 
     setHistory([...newHistory, ...outputLines]);
