@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import type { GitState, CommandResult } from "../logic/gitEngine";
+import type { GitState } from "../logic/gitEngine";
 
 interface RebaseModalProps {
   gitState: GitState;
