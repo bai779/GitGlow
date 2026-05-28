@@ -93,6 +93,14 @@ export class GitEngine {
     return false;
   }
 
+  public canUndo(): boolean {
+    return this.historyIndex > 0;
+  }
+
+  public canRedo(): boolean {
+    return this.historyIndex < this.history.length - 1;
+  }
+
   public getActiveCommitId(): string {
     if (this.state.head.startsWith("ref: refs/heads/")) {
       const branchName = this.state.head.substring("ref: refs/heads/".length);

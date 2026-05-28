@@ -73,11 +73,36 @@ export const GitGraph: React.FC<GitGraphProps> = ({ state, onNodeClick }) => {
       const commit = commits[id];
       let branchName = commit.branch;
       
-      // Fallback lane index
-      let laneIndex = laneMap[branchName] ?? 0;
-      if (branchName === "detached") {
-        // Find if parents have a known branch to sit on, or place in a separate top lane
+      // Resolve lane index using parents search if branch name is deleted
+      let laneIndex = 0;
+      if (laneMap[branchName] !== undefined) {
+        laneIndex = laneMap[branchName];
+      } else if (branchName === "detached") {
         laneIndex = branchNames.length; // place at the bottom lane
+      } else {
+        // Deleted branch fallback: find first ancestor that has a valid branch lane
+        const queue = [...commit.parents];
+        const visited = new Set<string>();
+        let foundLane = false;
+        
+        while (queue.length > 0) {
+          const currId = queue.shift()!;
+          if (visited.has(currId)) continue;
+          visited.add(currId);
+          
+          const currCommit = commits[currId];
+          if (currCommit) {
+            if (laneMap[currCommit.branch] !== undefined) {
+              laneIndex = laneMap[currCommit.branch];
+              foundLane = true;
+              break;
+            }
+            queue.push(...currCommit.parents);
+          }
+        }
+        if (!foundLane) {
+          laneIndex = 0; // Absolute fallback
+        }
       }
 
       const x = paddingX + getDepth(id) * nodeSpacingX;
@@ -183,7 +208,7 @@ export const GitGraph: React.FC<GitGraphProps> = ({ state, onNodeClick }) => {
 
   return (
     <div className="git-graph-container">
-      <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="xMinYMin meet">
+      <svg width={svgWidth} height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="xMinYMin meet">
         <defs>
           <radialGradient id="glow-grad" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#fff" stopOpacity="0.2" />

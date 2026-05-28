@@ -14,14 +14,8 @@ export const Workspace: React.FC = () => {
   // 1. Language state (defaults to Chinese "zh")
   const [lang, setLang] = useState<Language>(() => {
     const saved = localStorage.getItem("gitglow_language");
-    return (saved === "en" || saved === "zh") ? saved : "zh";
+    return (saved === "en" || saved === "zh" || saved === "ja" || saved === "es") ? saved : "zh";
   });
-
-  const toggleLanguage = () => {
-    const nextLang = lang === "zh" ? "en" : "zh";
-    setLang(nextLang);
-    localStorage.setItem("gitglow_language", nextLang);
-  };
 
   const t = UI_TRANSLATIONS[lang];
 
@@ -220,18 +214,60 @@ export const Workspace: React.FC = () => {
             </h3>
           </div>
           <div className="control-bar-right">
-            {/* Language Switcher */}
-            <button className="control-btn lang-btn" title="Switch Language / 切换语言" onClick={toggleLanguage}>
-              <Globe size={15} />
-              <span>{lang === "zh" ? "EN" : "中文"}</span>
-            </button>
+            {/* Language Switcher Dropdown */}
+            <div className="lang-selector-wrapper" style={{ display: "flex", alignItems: "center", position: "relative" }}>
+              <Globe size={15} style={{ marginRight: "6px", color: "var(--text-secondary)" }} />
+              <select 
+                value={lang} 
+                onChange={(e) => {
+                  const nextLang = e.target.value as Language;
+                  setLang(nextLang);
+                  localStorage.setItem("gitglow_language", nextLang);
+                }}
+                className="control-select"
+                style={{
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-secondary)",
+                  borderRadius: "6px",
+                  padding: "6px 8px",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="zh" style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>简体中文</option>
+                <option value="en" style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>English</option>
+                <option value="ja" style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>日本語</option>
+                <option value="es" style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>Español</option>
+              </select>
+            </div>
 
             {/* Undo / Redo buttons */}
-            <button className="control-btn" title={t.undoBtn} onClick={handleUndo}>
+            <button 
+              className="control-btn" 
+              title={t.undoBtn} 
+              onClick={handleUndo}
+              disabled={!engineRef.current.canUndo()}
+              style={{ 
+                opacity: engineRef.current.canUndo() ? 1 : 0.4, 
+                cursor: engineRef.current.canUndo() ? "pointer" : "not-allowed" 
+              }}
+            >
               <RotateCcw size={15} />
               <span>{t.undoBtn}</span>
             </button>
-            <button className="control-btn" title={t.redoBtn} onClick={handleRedo}>
+            <button 
+              className="control-btn" 
+              title={t.redoBtn} 
+              onClick={handleRedo}
+              disabled={!engineRef.current.canRedo()}
+              style={{ 
+                opacity: engineRef.current.canRedo() ? 1 : 0.4, 
+                cursor: engineRef.current.canRedo() ? "pointer" : "not-allowed" 
+              }}
+            >
               <RotateCw size={15} />
               <span>{t.redoBtn}</span>
             </button>
